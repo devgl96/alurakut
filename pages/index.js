@@ -2,7 +2,7 @@ import MainGrid from '../src/components/MainGrid';
 import Box from '../src/components/Box';
 import { AlurakutMenu, AlurakutProfileSidebarMenuDefault, OrkutNostalgicIconSet } from '../src/lib/AlurakutCommons';
 import { ProfileRelationsBoxWrapper } from '../src/components/ProfileRelations';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 function ProfileSidebar(props) {
   return (
@@ -20,6 +20,31 @@ function ProfileSidebar(props) {
       <AlurakutProfileSidebarMenuDefault />
     </Box>
   );
+};
+
+function ProfileRelationsBox(props) {
+  return (
+    <ProfileRelationsBoxWrapper>
+      <h2 className="smallTitle">
+        {props.title} ({props.items.length})
+      </h2>
+
+      <ul>
+          {props.items.map((pessoa, index) => {
+            if(index <= 5) {
+              return (
+                <li key={`${index}+${pessoa.login}`}>
+                  <a href={pessoa.html_url}>
+                    <img src={pessoa.avatar_url} />
+                    <span>{pessoa.login}</span>
+                  </a>
+                </li>
+              )
+            }
+          })}
+      </ul>
+    </ProfileRelationsBoxWrapper>
+  );
 }
 
 export default function Home() {
@@ -33,11 +58,45 @@ export default function Home() {
     'felipefialho'
   ];
 
-  const [comunidades, setComunidades] = useState([{
-    id: '123456765432345',
-    title: 'Eu odeio acordar cedo',
-    image: 'https://i.pinimg.com/originals/27/e4/e6/27e4e623203b9682471e7e0f8ddbec3f.jpg'
-  }]);
+  const [comunidades, setComunidades] = useState([]);
+
+  const [seguidores, setSeguidores] = useState([]);
+
+  // Catch the array of data from github
+  useEffect(() => {
+    // GET
+    fetch(`https://api.github.com/users/${githubUser}/followers`)
+      .then((resServer) => {
+        return resServer.json();
+      })
+      .then((resComplete) => {
+        setSeguidores(resComplete);
+      });
+
+      // API GraphQL
+      fetch(`https://graphql.datocms.com/`, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'e0a3d123c30e0e6dbac9d0d772465d',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          "query": `query {
+            allCommunities {
+              id
+              title
+              imageUrl
+              creatorSlug
+            }
+          }`
+        })
+      }).then((res) => res.json())
+      .then((resComplete) => {
+        const allCommunities = resComplete.data.allCommunities;
+        setComunidades(allCommunities);
+      });
+  }, [])
 
   return (
     <>
@@ -72,14 +131,28 @@ export default function Home() {
               const dadosDoForm = new FormData(e.target);
 
               const comunidade = {
-                id: new Date().toISOString,
                 title: dadosDoForm.get('title'),
-                image: dadosDoForm.get('image')
+                imageUrl: dadosDoForm.get('image'),
+                creatorSlug: githubUser
               };
 
-              const comunidadesAtualizadas = [...comunidades, comunidade];
+              // POST 
+              fetch('/api/comunidades', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(comunidade),
+              }).then(async (response) => {
+                const dados = await response.json();
+                // console.log(dados);
+                const comunidade = dados.registroCriado;
 
-              setComunidades(comunidadesAtualizadas);
+                const comunidadesAtualizadas = [...comunidades, comunidade];
+  
+                setComunidades(comunidadesAtualizadas);
+              })
+
             }}
             >
               <div>
@@ -110,6 +183,7 @@ export default function Home() {
             gridArea: "profileRelationsArea" 
           }}
         >
+          <ProfileRelationsBox title="Seguidores" items={seguidores}/>
           <ProfileRelationsBoxWrapper>
             <h2 className="smallTitle">
               Pessoas da comunidade ({pessoasFavoritas.length})
@@ -137,11 +211,11 @@ export default function Home() {
               {comunidades.map((comunidade) => {
                 return (
                   <li key={comunidade.id}>
-                    <a href={`/users/${comunidade.title}`} key={comunidade.title}>
+                    <a href={`/comunidades/${comunidade.id}`}>
                       {/* <img src={`https://picsum.photos/200/300`} /> */}
                       {/* <img src={`https://source.unsplash.com/random`} /> */}
                       {/* <img src={`https://place-hold.it/300x500`} /> */}
-                      <img src={comunidade.image} />
+                      <img src={comunidade.imageUrl} />
                       <span>{comunidade.title}</span>
                     </a>
                   </li>
